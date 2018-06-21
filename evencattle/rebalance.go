@@ -133,7 +133,8 @@ func Rebalance(client *rancher.RancherClient, projectId string, labelFilter stri
 		// iterate over each host in spread
 		for _, m := range spread {
 			if m.Count > int(perHost) {
-				log.Debugf("the host, %s appears to be over-scheduled", m.HostId)
+				toDeleteCount := m.Count - int(perHost)
+				log.Debugf("the host, %s appears to be over-scheduled by %d containers", m.HostId, toDeleteCount)
 
 				// get the host by id and de-activate it
 				host, err := client.Host.ById(m.HostId)
@@ -149,20 +150,25 @@ func Rebalance(client *rancher.RancherClient, projectId string, labelFilter stri
 				log.Debugf("host %s deactivated", m.HostId)
 
 				// second, kill the containers on the host
-				// we currently delete all containers because scale is always > 1
-				log.Debug("kill containers on ", m.HostId)
-				for _, v := range spread {
-					if v.HostId == m.HostId {
-						for _, containerId := range v.ContainerIds {
-							log.Debugf("delete container %s ", containerId)
-							container := r.GetContainerById(client, containerId)
-							client.Container.Delete(container)
-						}
+				// we only delete number of containers greater than desired number
+				log.Debug("kill ", toDeleteCount, " containers on ", m.HostId)
+				deleted := 0
+				for _, containerId := range m.ContainerIds {
+					log.Debugf("delete container %s ", containerId)
+					container := r.GetContainerById(client, containerId)
+					err := client.Container.Delete(container)
+					if err != nil {
+						log.Error(err)
+					}
+
+					deleted++
+					if deleted >= toDeleteCount {
+						break
 					}
 				}
 
 				// a healthy snooze to allow re-scheduling to occur
-				time.Sleep(10 * time.Second)
+				time.Sleep(time.Duration(int(toDeleteCount)) * 5 * time.Second)
 
 				// third, re-active the host
 				// get the host by id and de-activate it
