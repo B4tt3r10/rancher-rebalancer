@@ -120,21 +120,30 @@ func Rebalance(client *rancher.RancherClient, projectId string, labelFilter stri
 		// it should never get his far if you didn't scale > 1
 		numHosts := len(spread)
 		perHost := s.Scale / int64(numHosts)
-		log.Debug("number of hosts: ", numHosts)
-		log.Debugf("scale: %s, expected per host, %s", s.Scale, perHost)
+
+		// this is to avoid endless rebalancing when s.Scale is an odd value
+		offset := s.Scale % int64(numHosts)
+
+		log.Debug("Number of hosts: ", numHosts)
+		log.Debugf("Scale: %d, expected per host, %d", s.Scale, perHost)
 
 		log.WithFields(log.Fields{
 			"containers": s.InstanceIds,
 			"host_count": numHosts,
 			"scale": s.Scale,
 			"expected_per_host": perHost,
-		}).Infof("balance %s", serviceRef)
+		}).Infof("Check %s", serviceRef)
 
 		// iterate over each host in spread
 		for _, m := range spread {
 			if m.Count > int(perHost) {
 				toDeleteCount := m.Count - int(perHost)
-				log.Debugf("the host, %s appears to be over-scheduled by %d containers", m.HostId, toDeleteCount)
+				if (offset != 0 && toDeleteCount == 1) {
+					log.Info("No need to balance as total container number is odd")
+					break;
+				}
+
+				log.Debugf("Host %s is over-scheduled by %d containers", m.HostId, toDeleteCount)
 
 				// get the host by id and de-activate it
 				host, err := client.Host.ById(m.HostId)
@@ -151,7 +160,7 @@ func Rebalance(client *rancher.RancherClient, projectId string, labelFilter stri
 
 				// second, kill the containers on the host
 				// we only delete number of containers greater than desired number
-				log.Debug("kill ", toDeleteCount, " containers on ", m.HostId)
+				log.Debugf("kill %d containers on %s", toDeleteCount, m.HostId)
 				deleted := 0
 				for _, containerId := range m.ContainerIds {
 					log.Debugf("delete container %s ", containerId)
@@ -168,7 +177,9 @@ func Rebalance(client *rancher.RancherClient, projectId string, labelFilter stri
 				}
 
 				// a healthy snooze to allow re-scheduling to occur
-				time.Sleep(time.Duration(int(toDeleteCount)) * 5 * time.Second)
+				// multiple containers can be deleted at same time so required
+				// delay time is not linear but 30s can be a best guess
+				time.Sleep(30 * time.Second)
 
 				// third, re-active the host
 				// get the host by id and de-activate it
