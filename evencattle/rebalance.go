@@ -61,6 +61,7 @@ func Rebalance(client *rancher.RancherClient, projectId string, labelFilter stri
 		excluded := false
 		stackName := r.GetStackNameById(client, s.StackId)
 		serviceRef := stackName + "/" + s.Name
+		hostLabel := ""
 
 		// reject an inactive service
 		if s.State == "inactive" {
@@ -73,6 +74,9 @@ func Rebalance(client *rancher.RancherClient, projectId string, labelFilter stri
 			if k == "io.rancher.scheduler.global" && v == "true" {
 				log.Debugf("skipping global service %s", serviceRef)
 				excluded = true
+			} else if k == "io.rancher.scheduler.affinity:host_label" {
+				log.Debugf("Host Label is %s", v.(string))
+				hostLabel = v.(string)
 			}
 		}
 
@@ -116,16 +120,17 @@ func Rebalance(client *rancher.RancherClient, projectId string, labelFilter stri
 			log.Debug(spew.Sdump(spread))
 		}
 
-		// get number of hosts in play
+		// get number of hosts according to host label so
+		// newly joined host(s) are also counted
 		// it should never get his far if you didn't scale > 1
-		numHosts := len(spread)
+		numHosts := len(r.ListHostsByHostLabel(client, hostLabel))
 		perHost := s.Scale / int64(numHosts)
 
 		// this is to avoid endless rebalancing when s.Scale is an odd value
 		offset := s.Scale % int64(numHosts)
 
 		log.Debug("Number of hosts: ", numHosts)
-		log.Debugf("Scale: %d, expected per host, %d", s.Scale, perHost)
+		log.Debugf("Scale: %d, expected per host: %d", s.Scale, perHost)
 
 		log.WithFields(log.Fields{
 			"containers": s.InstanceIds,

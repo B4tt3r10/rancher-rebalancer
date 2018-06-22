@@ -157,6 +157,30 @@ func EvacuateHostByName(client *rancher.RancherClient, hostName string) bool {
 	return false
 }
 
+// return list of hosts having specified host label(client *rancher.RancherClient, hostName string)
+func ListHostsByHostLabel(client *rancher.RancherClient, hostLabel string) []*rancher.Host{
+	var hostList []*rancher.Host
+
+	// get a list of hosts
+	hosts, err := client.Host.List(nil)
+	if err != nil {
+		log.Error(err)
+	}
+
+	label := strings.Split(hostLabel, "=")
+
+	for _, h := range hosts.Data {
+		for k, v := range h.Labels {
+			if k == label[0] && v == label[1] {
+				log.Debugf("Found host %s with label %s", h.Hostname, hostLabel)
+				hostList = append(hostList, &h)
+			}
+		}
+	}
+
+	return hostList
+}
+
 func ListRancherServices(client *rancher.RancherClient, projectId string, filter *rancher.ListOpts) []*rancher.Service {
 	var servicesList []*rancher.Service
 	listOpts := baseListOpts()
