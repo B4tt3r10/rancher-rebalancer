@@ -31,12 +31,12 @@ func Rebalance(client *rancher.RancherClient, projectId string, labelFilter stri
 
 	// if a label filter is provided, remove all services without that label
 	if len(labelFilter) > 0 {
-		log.Debugf("filter out services without %s label", labelFilter)
+		log.Debugf("Finding services with %s label", labelFilter)
 		label := strings.Split(labelFilter, "=")
 		for _, s := range collection {
 			for k, v := range s.LaunchConfig.Labels {
 				if k == label[0] && v == label[1] {
-					log.Debugf("including service, '%s'", s.Name)
+					log.Debugf("Found service, '%s'", s.Name)
 					services = append(services, s)
 					break
 				}
@@ -48,13 +48,9 @@ func Rebalance(client *rancher.RancherClient, projectId string, labelFilter stri
 
 	// bail if there is nothing to balance
 	if len(services) < 1 {
-		log.Info("no candidate services to rebalance found")
+		log.Info("No candidate service to rebalance was found")
 		return
 	}
-
-	log.WithFields(log.Fields{
-		"candidate_count": len(services),
-	}).Info("rebalance services")
 
 	// main services iteration
 	for _, s := range services {
@@ -65,31 +61,31 @@ func Rebalance(client *rancher.RancherClient, projectId string, labelFilter stri
 
 		// reject an inactive service
 		if s.State == "inactive" {
-			log.Debugf("skipping service, %s due to being inactive", serviceRef)
+			log.Debugf("Skipping inactive service %s", serviceRef)
+			excluded = true
+		}
+
+		// reject a service with a scale:1
+		if s.Scale == 1 {
+			log.Debugf("Skipping service %s whose scale is 1", serviceRef)
 			excluded = true
 		}
 
 		// reject a global service
 		for k, v := range s.LaunchConfig.Labels {
 			if k == "io.rancher.scheduler.global" && v == "true" {
-				log.Debugf("skipping global service %s", serviceRef)
+				log.Debugf("Skipping global service %s", serviceRef)
 				excluded = true
 			} else if k == "io.rancher.scheduler.affinity:host_label" {
-				log.Debugf("Host Label is %s", v.(string))
+				log.Debugf("%s has affinity host Label as %s", serviceRef, v.(string))
 				hostLabel = v.(string)
 			}
-		}
-
-		// reject a service with a scale:1
-		if s.Scale == 1 {
-			log.Debugf("skipping service, %s due to scale:1", serviceRef)
-			excluded = true
 		}
 
 		var spread []*HostContainerCount
 
 		if excluded {
-			log.Debugf("service %s has been excluded", serviceRef)
+			log.Debugf("Service %s has been excluded", serviceRef)
 		} else {
 			// move onto balancing the service if not excluded
 
@@ -203,6 +199,6 @@ func Rebalance(client *rancher.RancherClient, projectId string, labelFilter stri
 				log.Debugf("host %s re-activated", m.HostId)
 			}
 		}
-		log.Debug("Check DONE")
+		log.Infof("Finished checking %s", serviceRef)
 	}
 }

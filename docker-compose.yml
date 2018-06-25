@@ -1,7 +1,7 @@
 version: '2'
 services:
   rancher-rebalancer:
-    image: scentregroup/rancher-rebalancer
+    image: scentregroup/rancher-rebalancer:${BUILDKITE_BUILD_NUMBER}
     stdin_open: true
     tty: true
     environment:
