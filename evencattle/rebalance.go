@@ -123,7 +123,11 @@ func Rebalance(client *rancher.RancherClient, projectId string, labelFilter stri
 		// get number of hosts according to host label so
 		// newly joined host(s) are also counted
 		// it should never get his far if you didn't scale > 1
-		numHosts := len(r.ListHostsByHostLabel(client, hostLabel))
+		numHosts := len(r.ListHostsByHostLabel(client, projectId, hostLabel))
+		if numHosts == 0 {
+			// means the service does not have an affinity host label
+			numHosts = len(spread)
+		}
 		perHost := s.Scale / int64(numHosts)
 
 		// this is to avoid endless rebalancing when s.Scale is an odd value
@@ -137,7 +141,7 @@ func Rebalance(client *rancher.RancherClient, projectId string, labelFilter stri
 			"host_count": numHosts,
 			"scale": s.Scale,
 			"expected_per_host": perHost,
-		}).Infof("Check %s", serviceRef)
+		}).Infof("Start to check %s", serviceRef)
 
 		// iterate over each host in spread
 		for _, m := range spread {
@@ -199,5 +203,6 @@ func Rebalance(client *rancher.RancherClient, projectId string, labelFilter stri
 				log.Debugf("host %s re-activated", m.HostId)
 			}
 		}
+		log.Debug("Check DONE")
 	}
 }
