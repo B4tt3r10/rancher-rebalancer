@@ -1,0 +1,30 @@
+steps:
+  - label: ":docker: build + tag + push + rmi"
+    env:
+      HTTP_PROXY: "http://proxy.ops.scentregroup.io:3128"
+    command:
+      - docker build --build-arg http_proxy=\${HTTP_PROXY} --build-arg https_proxy=\${HTTP_PROXY} -t ${BUILDKITE_ORGANIZATION_SLUG}/${BUILDKITE_PIPELINE_SLUG}:${BUILDKITE_BUILD_NUMBER} -t ${BUILDKITE_ORGANIZATION_SLUG}/${BUILDKITE_PIPELINE_SLUG}:latest ./
+      - docker push ${BUILDKITE_ORGANIZATION_SLUG}/${BUILDKITE_PIPELINE_SLUG}:${BUILDKITE_BUILD_NUMBER}
+      - docker push ${BUILDKITE_ORGANIZATION_SLUG}/${BUILDKITE_PIPELINE_SLUG}:latest
+      - docker rmi ${BUILDKITE_ORGANIZATION_SLUG}/${BUILDKITE_PIPELINE_SLUG}:${BUILDKITE_BUILD_NUMBER}
+      - docker rmi ${BUILDKITE_ORGANIZATION_SLUG}/${BUILDKITE_PIPELINE_SLUG}:latest
+
+  - label: '[dev] deploy to rancher'
+    env:
+      STACK_ENV: dev
+      STACK_NAME: rancher-rebalancer
+    command: stack_deploy
+
+  - label: '[stg] deploy to rancher'
+    env:
+      STACK_ENV: stg
+      STACK_NAME: rancher-rebalancer
+    command: stack_deploy
+
+  - wait
+  - block: '[prd] initiate deploy'
+  - label: '[prd] deploy to rancher'
+    env:
+      STACK_ENV: prd
+      STACK_NAME: rancher-rebalancer
+    command: stack_deploy
