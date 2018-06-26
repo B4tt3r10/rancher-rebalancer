@@ -6,6 +6,7 @@ services:
     tty: true
     environment:
       POLL_INTERVAL: '0'
+      DRY_MODE: ${DRY_MODE}
     labels:
       io.rancher.container.agent.role: environment
       io.rancher.container.create_agent: 'true'

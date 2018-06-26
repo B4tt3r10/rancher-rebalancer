@@ -82,6 +82,7 @@ func main() {
 		cli.BoolFlag{
 			Name:  "dry",
 			Usage: "run in dry mode",
+			EnvVar: "DRY_MODE",
 		},
 		cli.BoolFlag{
 			Name:  "debug,d",
@@ -139,11 +140,11 @@ func start(c *cli.Context) error {
 	if c.Int("poll-interval") > 0 {
 		for {
 			log.Debug("scan started at ", time.Now())
-			evencattle.Rebalance(rancherClient, projectId, c.String("label-filter"))
+			evencattle.Rebalance(rancherClient, projectId, c.String("label-filter"), c.GlobalBool("dry"))
 			time.Sleep(time.Duration(c.Int("poll-interval")) * time.Second)
 		}
 	} else {
-		evencattle.Rebalance(rancherClient, projectId, c.String("label-filter"))
+		evencattle.Rebalance(rancherClient, projectId, c.String("label-filter"), c.GlobalBool("dry"))
 	}
 
 	return nil

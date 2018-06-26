@@ -15,6 +15,7 @@ steps:
     env:
       STACK_ENV: dev
       STACK_NAME: rancher-rebalancer
+      DRY_MODE: false
     command: stack_deploy
 
   - wait
@@ -23,6 +24,7 @@ steps:
     env:
       STACK_ENV: stg
       STACK_NAME: rancher-rebalancer
+      DRY_MODE: false
     command: stack_deploy
 
   - wait
@@ -31,4 +33,5 @@ steps:
     env:
       STACK_ENV: prd
       STACK_NAME: rancher-rebalancer
+      DRY_MODE: true
     command: stack_deploy
