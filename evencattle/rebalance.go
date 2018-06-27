@@ -211,6 +211,7 @@ func Rebalance(client *rancher.RancherClient, projectId string, labelFilter stri
 				// we only delete number of containers greater than desired number
 				log.Infof("About to kill %d containers on %s", toDeleteCount, m.HostId)
 				deleted := 0
+				deletedContainerInfo := ""
 				for _, containerId := range m.ContainerIds {
 					if (dryRun) {
 						log.Infof("Dry run mode, simulate to delete container %s", containerId)
@@ -222,11 +223,13 @@ func Rebalance(client *rancher.RancherClient, projectId string, labelFilter stri
 						if err != nil {
 							log.Error(err)
 						}
-					}
 
-					deleted++
-					if deleted >= toDeleteCount {
-						break
+						deleted++
+
+						if deletedContainerInfo != "" { deletedContainerInfo += "\n" }
+						deletedContainerInfo += containerId + " | " + container.Name
+
+						if deleted >= toDeleteCount { break }
 					}
 				}
 
@@ -236,7 +239,7 @@ func Rebalance(client *rancher.RancherClient, projectId string, labelFilter stri
 				if (dryRun) {
 					log.Infof("Dry run mode, simulate to wait...")
 				} else {
-					time.Sleep(3 * time.Second)
+					time.Sleep(30 * time.Second)
 				}
 
 				// third, re-active the host
@@ -254,7 +257,7 @@ func Rebalance(client *rancher.RancherClient, projectId string, labelFilter stri
 					}
 					log.Debugf("Host %s re-activated", host.Hostname)
 
-					msg := "{\"channel\":\""+slackChannel+"\",\"username\":\"Rancher Rebalancer\", \"attachments\": [{\"color\":\"good\",\"fields\":[{\"title\":\"Unbalanced Service\",\"value\":\""+serviceRef+"\",\"short\":\"true\"},{\"title\":\"Unbalanced Host\", \"value\":\""+host.Hostname+"\",\"short\":\"true\"},{\"title\":\"Service Scale\", \"value\":\""+ strconv.Itoa(int(s.Scale)) +"\",\"short\":\"true\"},{\"title\":\"Total Host Number\", \"value\":\""+ strconv.Itoa(numHosts) +"\",\"short\":\"true\"},{\"title\":\"Action Performed\",\"value\": \""+ strconv.Itoa(toDeleteCount) +" container(s) have been rescheduled to other host(s)\"}]}]}"
+					msg := "{\"channel\":\""+slackChannel+"\",\"username\":\"Rancher Rebalancer\", \"attachments\": [{\"color\":\"good\",\"fields\":[{\"title\":\"Unbalanced Service\",\"value\":\""+serviceRef+"\",\"short\":\"true\"},{\"title\":\"Unbalanced Host\", \"value\":\""+host.Hostname+"\",\"short\":\"true\"},{\"title\":\"Service Scale\", \"value\":\""+ strconv.Itoa(int(s.Scale)) +"\",\"short\":\"true\"},{\"title\":\"Total Host Number\", \"value\":\""+ strconv.Itoa(numHosts) +"\",\"short\":\"true\"},{\"title\":\"Action Performed\",\"value\": \""+ strconv.Itoa(toDeleteCount) +" container(s) have been rescheduled to other host(s)\"},{\"title\":\"Deleted Containers\",\"value\": \"" + deletedContainerInfo + "\"}]}]}"
 
 					NotifySlack(msg)
 				}
