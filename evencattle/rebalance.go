@@ -3,6 +3,10 @@ package evencattle
 import (
 	"strings"
 	"time"
+	"bytes"
+	"strconv"
+	"io/ioutil"
+	"net/http"
 
 	r "github.com/ScentreGroup/rancher-rebalancer/rancher"
 	log "github.com/Sirupsen/logrus"
@@ -17,7 +21,40 @@ type HostContainerCount struct {
 	ContainerIds []string
 }
 
-func Rebalance(client *rancher.RancherClient, projectId string, labelFilter string, dryRun bool) {
+func NotifySlack(msg string) {
+	var payload []byte
+
+	payload = []byte(msg)
+	req, err := http.NewRequest("POST", "https://kryten-siw.ops.scentregroup.io/", bytes.NewBuffer(payload))
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+
+	log.WithFields(log.Fields{
+		"payload": string(payload),
+		"headers": req.Header,
+	}).Debug("request")
+
+	resp, err := client.Do(req)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	defer resp.Body.Close()
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	log.WithFields(log.Fields{
+		"status":  resp.Status,
+		"headers": resp.Header,
+		"body":    string(body),
+	}).Debug("response")
+}
+
+func Rebalance(client *rancher.RancherClient, projectId string, labelFilter string, dryRun bool, slackChannel string) {
 	var services []*rancher.Service
 
 	// TODO: work out how to to filter modifier for scale>1
@@ -126,10 +163,10 @@ func Rebalance(client *rancher.RancherClient, projectId string, labelFilter stri
 			// means the service does not have an affinity host label
 			numHosts = len(spread)
 		}
-		perHost := s.Scale / int64(numHosts)
+		perHost := int(s.Scale) / int(numHosts)
 
 		// this is to avoid endless rebalancing when s.Scale is an odd value
-		offset := s.Scale % int64(numHosts)
+		offset := int(s.Scale) % int(numHosts)
 
 		log.Debug("Number of hosts: ", numHosts)
 		log.Debugf("Scale: %d, expected per host: %d", s.Scale, perHost)
@@ -172,7 +209,7 @@ func Rebalance(client *rancher.RancherClient, projectId string, labelFilter stri
 
 				// second, kill the containers on the host
 				// we only delete number of containers greater than desired number
-				log.Debugf("About to kill %d containers on %s", toDeleteCount, m.HostId)
+				log.Infof("About to kill %d containers on %s", toDeleteCount, m.HostId)
 				deleted := 0
 				for _, containerId := range m.ContainerIds {
 					if (dryRun) {
@@ -199,7 +236,7 @@ func Rebalance(client *rancher.RancherClient, projectId string, labelFilter stri
 				if (dryRun) {
 					log.Infof("Dry run mode, simulate to wait...")
 				} else {
-					time.Sleep(30 * time.Second)
+					time.Sleep(3 * time.Second)
 				}
 
 				// third, re-active the host
@@ -216,6 +253,10 @@ func Rebalance(client *rancher.RancherClient, projectId string, labelFilter stri
 						log.Error(err, activation)
 					}
 					log.Debugf("Host %s re-activated", host.Hostname)
+
+					msg := "{\"channel\":\""+slackChannel+"\",\"username\":\"Rancher Rebalancer\", \"attachments\": [{\"color\":\"good\",\"fields\":[{\"title\":\"Unbalanced Service\",\"value\":\""+serviceRef+"\",\"short\":\"true\"},{\"title\":\"Unbalanced Host\", \"value\":\""+host.Hostname+"\",\"short\":\"true\"},{\"title\":\"Service Scale\", \"value\":\""+ strconv.Itoa(int(s.Scale)) +"\",\"short\":\"true\"},{\"title\":\"Total Host Number\", \"value\":\""+ strconv.Itoa(numHosts) +"\",\"short\":\"true\"},{\"title\":\"Action Performed\",\"value\": \""+ strconv.Itoa(toDeleteCount) +" container(s) have been rescheduled to other host(s)\"}]}]}"
+
+					NotifySlack(msg)
 				}
 			}
 		}

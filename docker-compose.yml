@@ -7,6 +7,7 @@ services:
     environment:
       POLL_INTERVAL: '0'
       DRY_MODE: ${DRY_MODE}
+      SLACK_CHANNEL: ${SLACK_CHANNEL}
     labels:
       io.rancher.container.agent.role: environment
       io.rancher.container.create_agent: 'true'

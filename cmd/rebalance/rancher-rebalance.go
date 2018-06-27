@@ -78,7 +78,6 @@ func main() {
 			EnvVar: "POLL_INTERVAL",
 			Value:  0,
 		},
-		// not yet implemented
 		cli.BoolFlag{
 			Name:  "dry",
 			Usage: "run in dry mode",
@@ -87,6 +86,11 @@ func main() {
 		cli.BoolFlag{
 			Name:  "debug,d",
 			Usage: "run in debug mode",
+		},
+		cli.StringFlag{
+			Name:   "slack-channel",
+			Usage:  "Slack channel to which rebalance notification will be sent",
+			EnvVar: "SLACK_CHANNEL",
 		},
 	}
 	app.Run(os.Args)
@@ -140,11 +144,11 @@ func start(c *cli.Context) error {
 	if c.Int("poll-interval") > 0 {
 		for {
 			log.Debug("scan started at ", time.Now())
-			evencattle.Rebalance(rancherClient, projectId, c.String("label-filter"), c.GlobalBool("dry"))
+			evencattle.Rebalance(rancherClient, projectId, c.String("label-filter"), c.GlobalBool("dry"), c.String("slack-channel"))
 			time.Sleep(time.Duration(c.Int("poll-interval")) * time.Second)
 		}
 	} else {
-		evencattle.Rebalance(rancherClient, projectId, c.String("label-filter"), c.GlobalBool("dry"))
+		evencattle.Rebalance(rancherClient, projectId, c.String("label-filter"), c.GlobalBool("dry"), c.String("slack-channel"))
 	}
 
 	return nil

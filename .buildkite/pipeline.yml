@@ -13,25 +13,28 @@ steps:
 
   - label: '[dev] deploy to rancher'
     env:
+      DRY_MODE: false
       STACK_ENV: dev
       STACK_NAME: rancher-rebalancer
-      DRY_MODE: false
+      SLACK_CHANNEL: "#monitoring-dev"
     command: stack_deploy
 
   - wait
   - block: '[stg] initiate deploy'
   - label: '[stg] deploy to rancher'
     env:
+      DRY_MODE: false
       STACK_ENV: stg
       STACK_NAME: rancher-rebalancer
-      DRY_MODE: false
+      SLACK_CHANNEL: "#monitoring-stg"
     command: stack_deploy
 
   - wait
   - block: '[prd] initiate deploy'
   - label: '[prd] deploy to rancher'
     env:
+      DRY_MODE: true
       STACK_ENV: prd
       STACK_NAME: rancher-rebalancer
-      DRY_MODE: true
+      SLACK_CHANNEL: "#monitoring-prd"
     command: stack_deploy
